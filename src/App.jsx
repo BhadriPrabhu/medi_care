@@ -7,6 +7,8 @@ import BMIModal from './components/BMIModal';
 import SleepTrackerModal from './components/SleepTrackerModal';
 import HeartRateScreen from './components/HeartRateScreen';
 import AISymptomCheckerScreen from './components/AISymptomCheckerScreen';
+import AyurvedaTipsModal from './components/AyurvedaTipsModal';
+import ReminderModal from './components/ReminderModal';
 import './App.css';
 
 class ErrorBoundary extends Component {
@@ -39,11 +41,17 @@ function App() {
   const [showSleepTracker, setShowSleepTracker] = useState(false);
   const [showHeartRate, setShowHeartRate] = useState(false);
   const [showAISymptomChecker, setShowAISymptomChecker] = useState(false);
+  const [showAyurvedaTips, setShowAyurvedaTips] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [activityGoals, setActivityGoals] = useState({ steps: 10000, exerciseMinutes: 30, waterIntake: 8 });
+  const synth = window.speechSynthesis; // Explicitly define synth
 
   useEffect(() => {
     localStorage.setItem('healthRecords', JSON.stringify(records));
+    if ('Notification' in window && Notification.permission !== 'granted') {
+      Notification.requestPermission();
+    }
   }, [records]);
 
   const addRecord = (newRecord) => {
@@ -52,6 +60,32 @@ function App() {
 
   const addSleepRecord = (sleepData) => {
     setRecords([...records, { ...sleepData, type: 'sleep', date: new Date().toISOString().split('T')[0] }]);
+  };
+
+  const setReminderNotification = (reminder, reminderTime) => {
+    if (reminder && reminderTime) {
+      const [hours, minutes] = reminderTime.split(':');
+      const now = new Date();
+      const reminderDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+      if (reminderDate <= now) reminderDate.setDate(reminderDate.getDate() + 1);
+      const timeDiff = reminderDate - now;
+      if ('Notification' in window && Notification.permission === 'granted') {
+        setTimeout(() => {
+          new Notification('Health Reminder', { body: reminder });
+          synth.speak(new SpeechSynthesisUtterance(reminder));
+        }, timeDiff);
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then((permission) => {
+          if (permission === 'granted') {
+            setTimeout(() => {
+              new Notification('Health Reminder', { body: reminder });
+              synth.speak(new SpeechSynthesisUtterance(reminder));
+            }, timeDiff);
+          }
+        });
+      }
+      alert(`Reminder set for ${reminder} at ${reminderTime}`);
+    }
   };
 
   return (
@@ -69,7 +103,9 @@ function App() {
           setShowBMIModal={setShowBMIModal}
           setShowSleepTracker={setShowSleepTracker}
           setShowHeartRate={setShowHeartRate}
+          setShowReminderModal={setShowReminderModal}
           activityGoals={activityGoals}
+          synth={synth} // Pass synth to HomeScreen
         />
       </ErrorBoundary>
       {showAddRecord && (
@@ -77,12 +113,14 @@ function App() {
           onSave={addRecord}
           onClose={() => setShowAddRecord(false)}
           selectedLanguage={selectedLanguage}
+          setSelectedLanguage={setSelectedLanguage}
         />
       )}
       {showSymptomChecker && (
         <SymptomCheckerScreen
           onClose={() => setShowSymptomChecker(false)}
           selectedLanguage={selectedLanguage}
+          setSelectedLanguage={setSelectedLanguage}
         />
       )}
       {showDashboard && (
@@ -93,7 +131,9 @@ function App() {
             setShowBMIModal={setShowBMIModal}
             setShowSleepTracker={setShowSleepTracker}
             setShowHeartRate={setShowHeartRate}
+            setShowAyurvedaTips={setShowAyurvedaTips}
             activityGoals={activityGoals}
+            selectedLanguage={selectedLanguage} // Added missing prop
           />
         </ErrorBoundary>
       )}
@@ -108,12 +148,14 @@ function App() {
           onSave={addSleepRecord}
           onClose={() => setShowSleepTracker(false)}
           selectedLanguage={selectedLanguage}
+          setSelectedLanguage={setSelectedLanguage}
         />
       )}
       {showHeartRate && (
         <HeartRateScreen
           onClose={() => setShowHeartRate(false)}
           selectedLanguage={selectedLanguage}
+          setSelectedLanguage={setSelectedLanguage}
         />
       )}
       {showAISymptomChecker && (
@@ -121,6 +163,21 @@ function App() {
           onClose={() => setShowAISymptomChecker(false)}
           records={records}
           selectedLanguage={selectedLanguage}
+          setSelectedLanguage={setSelectedLanguage}
+        />
+      )}
+      {showAyurvedaTips && (
+        <AyurvedaTipsModal
+          onClose={() => setShowAyurvedaTips(false)}
+          records={records}
+        />
+      )}
+      {showReminderModal && (
+        <ReminderModal
+          onClose={() => setShowReminderModal(false)}
+          onSave={setReminderNotification}
+          selectedLanguage={selectedLanguage}
+          synth={synth} // Pass synth to ReminderModal
         />
       )}
     </div>
